@@ -1,10 +1,354 @@
 # OpenClaw Memory Kit
 
+Complete memory and context persistence system for OpenClaw AI agents.
+
+An agent without memory is like a person with amnesia. Every session starts from scratch. This kit solves the problem: file templates, auto-save crons, hygiene scripts, compaction configs. Everything your agent needs to remember.
+
+---
+
+## Quick Start
+
+### Option 1: Let the Bot Do It (Recommended)
+
+**First, backup your config:**
+```bash
+cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.backup
+```
+
+Copy the contents of [SETUP-AGENT.md](SETUP-AGENT.md) and send it to your agent in chat. It will execute all steps automatically - clone the repo, install files, configure settings, and create crons.
+
+If the bot goes silent after setup - roll back:
+```bash
+cp ~/.openclaw/openclaw.json.backup ~/.openclaw/openclaw.json
+openclaw gateway start
+```
+
+### Option 2: Manual Installation (5 minutes)
+
+```bash
+git clone https://github.com/AlekseiUL/openclaw-memory-kit.git
+cd openclaw-memory-kit
+bash install.sh
+```
+
+The installer:
+1. Checks that OpenClaw is installed
+2. Asks for workspace path
+3. Creates memory/ structure (core, decisions, projects, archive)
+4. Copies templates (BOOTSTRAP.md, MEMORY.md, DO_NOT_DELETE.md, handoff.md)
+5. Installs scripts to `~/.openclaw/scripts/`
+6. Shows next steps (which snippets to add to config)
+
+**install.sh does NOT modify openclaw.json.** It only copies files and shows instructions.
+
+---
+
+## What Works Without vectorDB
+
+You do **NOT** need an OpenAI API key to get started. 80% of the value works out of the box.
+
+**Works immediately (zero dependencies):**
+- Templates: BOOTSTRAP.md, MEMORY.md, handoff.md, DO_NOT_DELETE.md
+- Memory structure (core, decisions, projects, archive)
+- Crons: auto-handoff (3x/day), auto-diary (2x/day), night-cleanup (bash)
+- Compaction with memoryFlush (saves context before compression)
+- Scripts: health-check, consistency-check, archive-old-notes
+
+**Requires OpenAI API key (for embeddings):**
+- memory-search.json - vector search across memory (hybrid: 70% vector + 30% BM25)
+- Consolidator works better with vectorDB but functions without it
+
+**Bottom line:** start without vectorDB. Your agent will remember context via handoff, write daily notes, archive old ones. When you need to search 3-month-old memories - add embeddings.
+
+---
+
+## Repository Structure
+
+```
+openclaw-memory-kit/
+├── README.md                    # This file
+├── LICENSE                      # MIT
+├── install.sh                   # Auto-installation
+│
+├── templates/                   # Ready-made templates
+│   ├── BOOTSTRAP.md             # Wake-up after compaction
+│   ├── MEMORY.md                # Long-term memory (template)
+│   ├── MEMORY-example.md        # Example of filled MEMORY.md
+│   ├── DO_NOT_DELETE.md         # File protection
+│   └── handoff.md               # Context transfer
+│
+├── memory/                      # Memory folder structure
+│   ├── core/                    # Eternal facts
+│   ├── decisions/               # Decisions and rules
+│   ├── projects/                # Projects
+│   └── archive/daily/           # Daily notes archive
+│
+├── crons/                       # Cron prompts
+│   ├── auto-handoff.md          # 3x/day - context save
+│   ├── auto-diary.md            # 2x/day - daily note
+│   ├── consolidator.md          # 1x/week - consolidation
+│   └── night-cleanup.md         # 1x/night - cleanup (0 tokens)
+│
+├── config/                      # Config snippets for openclaw.json
+│   ├── compaction.json          # Compaction (safeguard mode)
+│   ├── memory-flush.json        # memoryFlush prompt
+│   └── memory-search.json       # Vector search (hybrid)
+│
+├── scripts/                     # Utilities (bash, 0 tokens)
+│   ├── health-check.sh          # System health check
+│   ├── consistency-check.sh     # Data integrity
+│   └── archive-old-notes.sh     # Archive + rotate + cleanup
+│
+└── docs/                        # Documentation
+    ├── architecture.md          # Architecture (5 memory layers)
+    ├── how-it-works.md          # Each component in detail
+    ├── troubleshooting.md       # Problem solving
+    └── faq.md                   # FAQ
+```
+
+---
+
+## Components
+
+### Templates (templates/)
+
+| File | Purpose |
+|------|---------|
+| **BOOTSTRAP.md** | Instructions for agent after wake-up/compaction. Reads handoff → daily note → sessions_history. Restores context. |
+| **MEMORY.md** | Long-term memory (template with hints). Loaded in every session. Keep < 3000 chars. |
+| **MEMORY-example.md** | Example of filled MEMORY.md from a real agent. Copy structure, replace data. |
+| **DO_NOT_DELETE.md** | List of files agent should NOT delete. Protection from accidental cleanup. |
+| **handoff.md** | Context transfer between sessions. Format: Topic, Decisions, TODO, Files, Context, Drafts. |
+
+### Crons (crons/)
+
+| Cron | Schedule | Model | Purpose |
+|------|----------|-------|---------|
+| **auto-handoff** | 3x/day (12, 18, 23) | Sonnet | Saves current context to handoff.md |
+| **auto-diary** | 2x/day (13, 22) | Sonnet | Daily note in memory/YYYY-MM-DD.md |
+| **consolidator** | Sun 03:00 | Sonnet | Extracts patterns from daily notes → core/, decisions/ |
+| **night-cleanup** | 03:30 | bash (0 tokens) | Archive, log rotation, session cleanup |
+
+Each file contains prompt + ready JSON for `openclaw.json → crons[]`.
+
+### Configs (config/)
+
+| File | Where to insert | Purpose |
+|------|----------------|---------|
+| **compaction.json** | `agents[].compaction` | Safeguard mode + memoryFlush before compression |
+| **memory-flush.json** | `compaction.memoryFlush.prompt` | Full prompt for context save |
+| **memory-search.json** | `memorySearch` | Hybrid vector search (70% vector + 30% BM25) |
+
+### Scripts (scripts/)
+
+| Script | Purpose |
+|--------|---------|
+| **health-check.sh** | Check: files in place, handoff current, SQLite WAL, gateway alive |
+| **consistency-check.sh** | Find conflicts between files (MEMORY.md size, duplicates) |
+| **archive-old-notes.sh** | Full night cleanup: archive > 14d, delete > 90d, log rotation, session cleanup, SQLite vacuum |
+
+---
+
+## Installation
+
+### Automatic
+
+```bash
+bash install.sh
+```
+
+### Manual
+
+1. Copy templates to agent workspace:
+```bash
+WS="$HOME/.openclaw/agents/main/agent"  # your path
+cp templates/BOOTSTRAP.md "$WS/"
+cp templates/MEMORY.md "$WS/"
+cp templates/DO_NOT_DELETE.md "$WS/memory/"
+cp templates/handoff.md "$WS/memory/"
+```
+
+2. Create structure:
+```bash
+mkdir -p "$WS/memory/"{core,decisions,projects,archive/daily}
+```
+
+3. Copy scripts:
+```bash
+mkdir -p ~/.openclaw/scripts
+cp scripts/*.sh ~/.openclaw/scripts/
+chmod +x ~/.openclaw/scripts/*.sh
+```
+
+4. Allow crons to read session history:
+
+In `~/.openclaw/openclaw.json` add to `tools` section:
+```json
+"tools": {
+  "sessions": {
+    "visibility": "agent"
+  }
+}
+```
+
+> ⚠️ **Without this setting Auto Handoff and Auto Diary crons cannot read main session history!** By default isolated crons only see themselves (`visibility: "tree"`). Value `"agent"` allows reading sessions of the same agent.
+
+---
+
+## Cron Setup
+
+Add to `~/.openclaw/openclaw.json` → `agents` → `[your agent]` → `crons`:
+
+```json
+{
+  "crons": [
+    {
+      "id": "auto-handoff",
+      "name": "Auto Handoff",
+      "schedule": "0 12,18,23 * * *",
+      "sessionTarget": "isolated",
+      "deleteAfterRun": true,
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Write current context to memory/handoff.md. Format: ## Topic, ## Decisions, ## TODO, ## Files, ## Context, ## Drafts. Facts only, exact paths. If nothing - NO_REPLY.",
+        "model": "anthropic/claude-sonnet-4-6",
+        "timeoutSeconds": 120
+      },
+      "delivery": { "mode": "none" }
+    },
+    {
+      "id": "auto-diary",
+      "name": "Auto Diary",
+      "schedule": "0 13,22 * * *",
+      "sessionTarget": "isolated",
+      "deleteAfterRun": true,
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Write diary in memory/YYYY-MM-DD.md (current date). If file exists - add. Format: What happened, Decisions, Insights. Max 200 words. If nothing - NO_REPLY.",
+        "model": "anthropic/claude-sonnet-4-6",
+        "timeoutSeconds": 120
+      },
+      "delivery": { "mode": "none" }
+    },
+    {
+      "id": "weekly-consolidator",
+      "name": "Weekly Consolidator",
+      "schedule": "0 3 * * 0",
+      "sessionTarget": "isolated",
+      "deleteAfterRun": true,
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Consolidation: read daily notes for 7 days, extract patterns, update memory/decisions/ and memory/core/. Check MEMORY.md < 3000 chars. Don't overwrite - add. If nothing - NO_REPLY.",
+        "model": "anthropic/claude-sonnet-4-6",
+        "timeoutSeconds": 300
+      },
+      "delivery": { "mode": "none" }
+    }
+  ]
+}
+```
+
+Full prompts and details in `crons/*.md`.
+
+---
+
+## Config Snippets
+
+### Compaction
+
+Add to `agents[].compaction`:
+
+```json
+{
+  "mode": "safeguard",
+  "reserveTokensFloor": 25000,
+  "maxHistoryShare": 0.7,
+  "identifierPolicy": "strict",
+  "model": "anthropic/claude-sonnet-4-6",
+  "memoryFlush": {
+    "enabled": true,
+    "softThresholdTokens": 8000,
+    "prompt": "BEFORE compaction write to memory/handoff.md: ## Topic, ## Decisions, ## TODO, ## Files, ## Context, ## Drafts. Exact paths, facts, drafts IN FULL."
+  }
+}
+```
+
+### Vector Search
+
+Add to root of `openclaw.json`:
+
+```json
+{
+  "memorySearch": {
+    "enabled": true,
+    "sources": ["memory", "sessions"],
+    "experimental": { "sessionMemory": true },
+    "provider": "openai",
+    "model": "text-embedding-3-small",
+    "query": {
+      "hybrid": {
+        "enabled": true,
+        "vectorWeight": 0.7,
+        "textWeight": 0.3
+      }
+    }
+  }
+}
+```
+
+---
+
+## FAQ
+
+**Why handoff if there's memory_search?**
+handoff - fast restore of "what we were doing 5 minutes ago". memory_search - deep search across entire database. After compaction you need handoff.
+
+**Can I use without vector memory?**
+Yes. Base system (handoff + daily notes + MEMORY.md) works without it.
+
+**How much do crons cost?**
+~4000-7000 tokens/day on Sonnet. Less than $0.01/day.
+
+**Which model to use in crons?**
+Any light one. Examples: `anthropic/claude-sonnet-4-6`, `openai/gpt-4o-mini`, `google/gemini-2.5-flash`. Crons write summaries - powerful model not needed.
+
+**How to migrate?**
+Copy files to memory/core/, create MEMORY.md, configure crons. Details in docs/faq.md.
+
+More questions - [docs/faq.md](docs/faq.md).
+
+---
+
+## Documentation
+
+- [Architecture](docs/architecture.md) - 5 memory layers, data flows
+- [How it Works](docs/how-it-works.md) - each component in detail
+- [Troubleshooting](docs/troubleshooting.md) - 8 typical situations
+- [FAQ](docs/faq.md) - frequently asked questions
+
+---
+
+## Author
+
+**Aleksei Ulianov** - AI automation, agents, OpenClaw
+
+- 🎬 YouTube: [@alekseiulianov](https://youtube.com/@alekseiulianov)
+- 📱 Telegram: [@Sprut_AI](https://t.me/Sprut_AI)
+- 💎 AI OPERATIONS (paid group): [Subscribe](https://t.me/tribute/app?startapp=sJyg)
+
+This kit is part of a battle-tested system running 9 AI agents in production daily.
+
+## License
+
+MIT - do whatever you want.
+
+---
+
+# OpenClaw Memory Kit (Русский)
+
 Полная система памяти и восстановления контекста для AI-агентов на OpenClaw.
 
 Агент без памяти - как человек с амнезией. Каждая новая сессия начинается с чистого листа. Этот кит решает проблему: шаблоны файлов, кроны для автосохранения, скрипты для гигиены, конфиги для компактификации. Всё что нужно чтобы агент помнил.
-
----
 
 ## Быстрый старт
 
@@ -344,69 +688,17 @@ MIT - делай что хочешь.
 
 ---
 
-# OpenClaw Memory Kit (English)
+## Resources | Ресурсы
 
-Complete memory and context persistence system for OpenClaw AI agents.
-
-An agent without memory is like a person with amnesia. Every session starts from scratch. This kit solves the problem: file templates, auto-save crons, hygiene scripts, compaction configs. Everything your agent needs to remember.
-
-## Quick Start
-
-```bash
-git clone https://github.com/AlekseiUL/openclaw-memory-kit.git
-cd openclaw-memory-kit
-bash install.sh
-```
-
-The installer checks for OpenClaw, asks for your workspace path, copies templates, creates the memory structure, and installs scripts. **It does NOT modify openclaw.json** - only shows what to add.
-
-## What Works Without vectorDB
-
-You do **NOT** need an OpenAI API key to get started. 80% of the value works out of the box.
-
-**Works immediately (zero dependencies):**
-- Templates: BOOTSTRAP.md, MEMORY.md, handoff.md, DO_NOT_DELETE.md
-- Memory structure (core, decisions, projects, archive)
-- Crons: auto-handoff (3x/day), auto-diary (2x/day), night-cleanup (bash)
-- Compaction with memoryFlush (saves context before compression)
-- Scripts: health-check, consistency-check, archive-old-notes
-
-**Requires OpenAI API key (for embeddings):**
-- memory-search.json - vector search across memory (hybrid: 70% vector + 30% BM25)
-- Consolidator works better with vectorDB but functions without it
-
-**Bottom line:** start without vectorDB. Your agent will remember context via handoff, write daily notes, archive old ones. When you need to search 3-month-old memories - add embeddings.
-
-## What's Inside
-
-- **templates/** - BOOTSTRAP.md (wake-up instructions), MEMORY.md (long-term memory), DO_NOT_DELETE.md (file protection), handoff.md (context transfer)
-- **crons/** - Auto-handoff (3x/day), Auto-diary (2x/day), Weekly consolidator, Night cleanup (0 tokens)
-- **config/** - Compaction (safeguard mode), memoryFlush prompt, Hybrid vector search
-- **scripts/** - Health check, consistency check, archive/rotate/cleanup
-- **docs/** - Architecture (5 memory layers), how each component works, troubleshooting, FAQ
-
-## Architecture
-
-```
-Working Memory  → MEMORY.md, AGENTS.md (loaded every session)
-Episodic Memory → daily notes, session history
-Semantic Memory → memory/core/, vectorDB (hybrid search)
-Procedural      → skills/, memory/decisions/
-Handoff Layer   → handoff.md, BOOTSTRAP.md
-```
-
-See [docs/architecture.md](docs/architecture.md) for details.
-
-## Author
-
-**Aleksei Ulianov** - AI automation, agents, OpenClaw
-
-- 🎬 YouTube: [@alekseiulianov](https://youtube.com/@alekseiulianov)
-- 📱 Telegram: [@Sprut_AI](https://t.me/Sprut_AI)
-- 💎 AI OPERATIONS (paid group): [Subscribe](https://t.me/tribute/app?startapp=sJyg)
-
-This kit is part of a battle-tested system running 9 AI agents in production daily.
+- 📺 YouTube: [youtube.com/@alekseiulianov](https://youtube.com/@alekseiulianov)
+- 📱 Telegram: [t.me/Sprut_AI](https://t.me/Sprut_AI)
+- 🔥 AI ОПЕРАЦИОНКА (Premium): [Подписка](https://t.me/tribute/app?startapp=sJyg) — продвинутые материалы, скиллы, агенты, поддержка
+- 💻 GitHub: [github.com/AlekseiUL](https://github.com/AlekseiUL)
 
 ## License
 
 MIT
+
+---
+
+*Making AI agents remember since 2026 | Делаю AI-агентов с памятью с 2026*
