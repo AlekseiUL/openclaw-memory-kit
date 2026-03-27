@@ -1,17 +1,25 @@
 {
-  "_comment": "Настройки векторного поиска. Вставить в openclaw.json → memorySearch",
+  "_comment": "Настройки memory-core плагина. В новых версиях OpenClaw память настраивается через plugins.entries.memory-core",
+  "_note": "Этот файл - СПРАВОЧНИК. Для применения используйте: openclaw config set plugins.entries.memory-core.KEY VALUE",
+  
   "enabled": true,
   "sources": ["memory", "sessions"],
-  "experimental": {
-    "sessionMemory": true
+  
+  "embedding": {
+    "_comment": "Провайдер эмбеддингов. Должен быть настроен в auth.profiles",
+    "provider": "openai",
+    "model": "text-embedding-3-small"
   },
-  "provider": "openai",
-  "model": "text-embedding-3-small",
-  "query": {
+  
+  "search": {
     "hybrid": {
       "enabled": true,
       "vectorWeight": 0.7,
       "textWeight": 0.3
     }
+  },
+  
+  "experimental": {
+    "sessionMemory": true
   }
 }
