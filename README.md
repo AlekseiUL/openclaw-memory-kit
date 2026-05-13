@@ -17,6 +17,17 @@ An agent without memory is like a person with amnesia. Every session starts from
 
 ---
 
+## Who is this for?
+
+OpenClaw Memory Kit is for users who want durable agent context without building a memory system from scratch:
+
+- personal OpenClaw operators who lose context after compaction or restarts;
+- agent builders who need file memory, handoff notes, daily notes, and cleanup scripts;
+- teams who want a safe, inspectable memory structure before enabling vector search;
+- anyone who prefers backup-first setup over risky one-shot automation.
+
+It is not a magic database. You still decide what should be remembered, archived, or kept private.
+
 ## Quick Start
 
 ### Option 1: Let the Bot Do It (Recommended)

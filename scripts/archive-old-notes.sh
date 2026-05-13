@@ -146,7 +146,9 @@ done
 
 # Удаляем из архива старше PURGE_AFTER_DAYS
 if [ -d "$ARCHIVE_DIR" ]; then
-  for f in "$ARCHIVE_DIR"/*.md 2>/dev/null; do
+  old_nullglob=$(shopt -p nullglob || true)
+  shopt -s nullglob
+  for f in "$ARCHIVE_DIR"/*.md; do
     [ -f "$f" ] || continue
     fname=$(basename "$f")
     [[ "$fname" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\.md$ ]] || continue
@@ -158,6 +160,7 @@ if [ -d "$ARCHIVE_DIR" ]; then
       WOULD_DELETE=$((WOULD_DELETE+1))
     fi
   done
+  eval "$old_nullglob"
 fi
 
 if [ "$DRY_RUN" = true ]; then
@@ -202,9 +205,11 @@ log "🤖 Очистка старых сессий..."
 SESSION_CLEANED=0
 WOULD_CLEAN_SESSIONS=0
 
-for agent_dir in "$HOME/.openclaw/agents"/*/sessions 2>/dev/null; do
+old_nullglob=$(shopt -p nullglob || true)
+shopt -s nullglob
+for agent_dir in "$HOME/.openclaw/agents"/*/sessions; do
   [ -d "$agent_dir" ] || continue
-  for f in "$agent_dir"/*.jsonl 2>/dev/null; do
+  for f in "$agent_dir"/*.jsonl; do
     [ -f "$f" ] || continue
     if stat -f %m "$f" >/dev/null 2>&1; then
       file_age=$(( ( $(date +%s) - $(stat -f %m "$f") ) / 86400 ))
@@ -219,6 +224,7 @@ for agent_dir in "$HOME/.openclaw/agents"/*/sessions 2>/dev/null; do
     fi
   done
 done
+eval "$old_nullglob"
 
 if [ "$DRY_RUN" = true ]; then
   log "  📊 Будет очищено сессий: $WOULD_CLEAN_SESSIONS"
