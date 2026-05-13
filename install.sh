@@ -35,7 +35,7 @@ echo "Подсказка: путь можно найти в ~/.openclaw/openclaw
 echo "  → agents → entries → [ваш агент] → workspace"
 echo "  Типичные варианты:"
 echo "    ~/.openclaw/agents/main/agent"
-echo "    ~/Desktop/AI_CENTER"
+echo "    ~/Projects/my-openclaw-agent"
 echo "    ~/.openclaw/workspace"
 echo ""
 read -p "Workspace [Enter = default]: " WORKSPACE

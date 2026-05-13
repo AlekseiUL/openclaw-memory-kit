@@ -2,6 +2,17 @@
 
 Complete memory and context persistence system for OpenClaw AI agents.
 
+## Canonical source
+
+This project is maintained by Aleksei Ulianov / Sprut_AI.
+Original repository: https://github.com/AlekseiUL/openclaw-memory-kit
+
+If you found this project mirrored, repackaged, or redistributed elsewhere, check this repository as the source of truth.
+
+## Attribution
+
+Where permitted by the applicable license, if you reuse, fork, modify, package, or publish this work, keep the original copyright and license notice and link back to the canonical repository.
+
 An agent without memory is like a person with amnesia. Every session starts from scratch. This kit solves the problem: file templates, auto-save crons, hygiene scripts, compaction configs. Everything your agent needs to remember.
 
 ---
