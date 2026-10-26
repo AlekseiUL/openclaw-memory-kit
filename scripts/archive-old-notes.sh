@@ -45,7 +45,7 @@ WORKSPACE="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/agents/main/agent}"
 MEMORY_DIR="$WORKSPACE/memory"
 ARCHIVE_DIR="$MEMORY_DIR/archive/daily"
 LOG_DIR="${OPENCLAW_LOG_DIR:-$HOME/.openclaw/logs}"
-TMP_LOG_DIR="/tmp/openclaw"
+TMP_LOG_DIR="${OPENCLAW_TMP_LOG_DIR:-/tmp/openclaw}"
 SQLITE_DB="${OPENCLAW_SQLITE_DB:-$HOME/.openclaw/memory/main.sqlite}"
 
 ARCHIVE_AFTER_DAYS="${ARCHIVE_AFTER_DAYS:-14}"
@@ -116,20 +116,22 @@ DELETED=0
 WOULD_ARCHIVE=0
 WOULD_DELETE=0
 
+# Compute once even when only archived notes remain (BSD and GNU date).
+if date -v-1d '+%Y' >/dev/null 2>&1; then
+  cutoff_archive=$(date -v-${ARCHIVE_AFTER_DAYS}d '+%Y-%m-%d')
+  cutoff_purge=$(date -v-${PURGE_AFTER_DAYS}d '+%Y-%m-%d')
+else
+  cutoff_archive=$(date -d "${ARCHIVE_AFTER_DAYS} days ago" '+%Y-%m-%d')
+  cutoff_purge=$(date -d "${PURGE_AFTER_DAYS} days ago" '+%Y-%m-%d')
+fi
+
 for f in "$MEMORY_DIR"/20??-*.md; do
   [ -f "$f" ] || continue
   fname=$(basename "$f")
   [[ "$fname" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\.md$ ]] || continue
 
   file_date="${fname%.md}"
-  # Совместимость macOS/Linux
-  if date -v-1d '+%Y' >/dev/null 2>&1; then
-    cutoff_archive=$(date -v-${ARCHIVE_AFTER_DAYS}d '+%Y-%m-%d')
-    cutoff_purge=$(date -v-${PURGE_AFTER_DAYS}d '+%Y-%m-%d')
-  else
-    cutoff_archive=$(date -d "${ARCHIVE_AFTER_DAYS} days ago" '+%Y-%m-%d')
-    cutoff_purge=$(date -d "${PURGE_AFTER_DAYS} days ago" '+%Y-%m-%d')
-  fi
+
 
   if [[ "$file_date" < "$cutoff_purge" ]]; then
     if execute "rm -f \"$f\"" "🗑️ Удаление (>$PURGE_AFTER_DAYS д): $fname"; then
